@@ -154,33 +154,43 @@
             </div>
         </section>
 
-        <!-- Sección 4: Datos Demográficos -->
+        <!-- Sección 4: Datos Demográficos (3 Columnas: Sexo, Edad, Ciudad) -->
         <section class="break-inside-avoid">
             <h3 class="section-title border-purple-600">Datos Demográficos y Segmentación</h3>
-            <div class="grid grid-cols-2 gap-8">
-                <!-- Género -->
-                <div>
-                    <h4 class="text-xs font-bold uppercase text-gray-500 mb-2 text-center">Distribución por Sexo</h4>
-                    <div class="h-40 flex justify-center">
+            <div class="grid grid-cols-3 gap-6">
+                
+                <!-- Col 1: Género -->
+                <div class="bg-gray-50 p-4 rounded border">
+                    <h4 class="text-xs font-bold uppercase text-gray-500 mb-2 text-center">Sexo</h4>
+                    <div class="h-32 flex justify-center">
                         <canvas id="genderChart"></canvas>
                     </div>
-                    <div class="flex justify-center mt-2 gap-4 text-xs">
-                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-600 mr-1"></span> Hombres: {{ demographics.men_pct }}%</span>
-                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-pink-500 mr-1"></span> Mujeres: {{ demographics.women_pct }}%</span>
+                    <div class="flex justify-center mt-2 gap-2 text-[10px]">
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-blue-600 mr-1"></span> H: {{ demographics.men_pct }}%</span>
+                        <span class="flex items-center"><span class="w-2 h-2 rounded-full bg-pink-500 mr-1"></span> M: {{ demographics.women_pct }}%</span>
                     </div>
                 </div>
-                <!-- Ciudades -->
-                <div>
-                    <h4 class="text-xs font-bold uppercase text-gray-500 mb-3">Principales Ciudades</h4>
-                    <div class="space-y-3">
-                        {% for city in demographics.cities %}
+
+                <!-- Col 2: Edad (NUEVO) -->
+                <div class="bg-gray-50 p-4 rounded border">
+                    <h4 class="text-xs font-bold uppercase text-gray-500 mb-2 text-center">Rango de Edad</h4>
+                    <div class="h-32 w-full">
+                        <canvas id="ageChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Col 3: Ciudades -->
+                <div class="bg-gray-50 p-4 rounded border">
+                    <h4 class="text-xs font-bold uppercase text-gray-500 mb-2 text-center">Principales Ciudades</h4>
+                    <div class="space-y-2 overflow-hidden">
+                        {% for city in demographics.cities[:4] %}
                         <div>
-                            <div class="flex justify-between text-xs font-medium mb-1">
-                                <span>{{ city.name }}</span>
+                            <div class="flex justify-between text-[10px] font-medium mb-1">
+                                <span class="truncate pr-2">{{ city.name }}</span>
                                 <span>{{ city.pct }}%</span>
                             </div>
-                            <div class="w-full bg-gray-200 rounded-full h-1.5">
-                                <div class="bg-blue-600 h-1.5 rounded-full" style="width: {{ city.pct }}%"></div>
+                            <div class="w-full bg-gray-200 rounded-full h-1">
+                                <div class="bg-blue-600 h-1 rounded-full" style="width: {{ city.pct }}%"></div>
                             </div>
                         </div>
                         {% endfor %}
@@ -197,8 +207,9 @@
     <script>
         // Configuración de Gráficos
         Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#374151';
         
-        // Gráfico de Barras FB (Visualizaciones vs Alcance)
+        // Gráfico de Barras FB
         new Chart(document.getElementById('fbChart'), {
             type: 'bar',
             data: {
@@ -233,6 +244,33 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } }
+            }
+        });
+
+        // Gráfico de Edad (NUEVO)
+        const ageLabels = [{% for age in demographics.ages %}"{{ age.range }}",{% endfor %}];
+        const ageData = [{% for age in demographics.ages %}{{ age.pct }},{% endfor %}];
+
+        new Chart(document.getElementById('ageChart'), {
+            type: 'bar',
+            data: {
+                labels: ageLabels,
+                datasets: [{
+                    label: '%',
+                    data: ageData,
+                    backgroundColor: '#8b5cf6',
+                    borderRadius: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y', // Barras horizontales
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false, grid: { display: false } },
+                    y: { grid: { display: false }, ticks: { font: { size: 10 } } }
+                }
             }
         });
     </script>
