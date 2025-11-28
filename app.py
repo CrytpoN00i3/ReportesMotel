@@ -7,156 +7,109 @@ from datetime import datetime
 from PIL import Image
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Generador de Reportes Analytics", layout="wide")
+st.set_page_config(page_title="Generador de Reportes Meta", layout="wide")
 
-# --- BARRA LATERAL: API KEY ---
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.header("Configuración")
     api_key = st.text_input("Ingresa tu Gemini API Key", type="password")
     st.markdown("[Obtener API Key gratis](https://aistudio.google.com/app/apikey)")
-    st.info("Nota: Este script usa el modelo 'gemini-2.5-flash'. Asegúrate de que tu API Key tenga acceso.")
 
 # --- INTERFAZ PRINCIPAL ---
-st.title("📊 Generador de Reportes PDF Automático")
-st.markdown("Crea reportes profesionales a partir de capturas de pantalla de Meta Business Suite.")
+st.title("📊 Generador de Reportes: Desempeño en Redes Sociales")
+st.markdown("Genera un informe formal y estructurado a partir de capturas de Meta Business Suite.")
 
-# --- INPUTS DEL USUARIO (NOMBRE Y PERIODO) ---
-st.subheader("1. Detalles del Reporte")
+# --- INPUTS ---
 col1, col2 = st.columns(2)
-
 with col1:
-    # Aquí el usuario escribe el nombre del motel
-    motel_name = st.text_input("Nombre del Negocio / Motel", value="", placeholder="Ej: Motel Dulce Boca")
-
+    motel_name = st.text_input("Nombre del Negocio", placeholder="Ej: Motel Dulce Boca")
 with col2:
-    # Aquí el usuario escribe el periodo (fechas)
-    period = st.text_input("Periodo del Reporte", value="", placeholder="Ej: Octubre - Noviembre 2025")
+    period = st.text_input("Periodo del Reporte", placeholder="Ej: Octubre - Noviembre")
 
-# --- SUBIDA DE IMÁGENES ---
-st.subheader("2. Subir Evidencias")
-uploaded_files = st.file_uploader(
-    "Sube tus capturas de pantalla (JPG, PNG)", 
-    accept_multiple_files=True, 
-    type=['jpg', 'jpeg', 'png']
-)
+uploaded_files = st.file_uploader("Sube las evidencias (Capturas de pantalla)", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
 
-# --- LÓGICA DE GENERACIÓN ---
+# --- LÓGICA ---
 if st.button("Generar Reporte"):
-    
-    # Validaciones previas
-    if not api_key:
-        st.warning("⚠️ Por favor ingresa tu API Key en la barra lateral izquierda.")
-        st.stop()
-    
-    if not uploaded_files:
-        st.warning("⚠️ Por favor sube al menos una captura de pantalla.")
-        st.stop()
-        
-    if not motel_name or not period:
-        st.warning("⚠️ Por favor completa el Nombre del Negocio y el Periodo.")
+    if not api_key or not uploaded_files or not motel_name or not period:
+        st.warning("⚠️ Por favor completa todos los campos y la API Key.")
         st.stop()
 
-    # Configurar API
     genai.configure(api_key=api_key)
     
-    with st.spinner(f'Analizando imágenes para {motel_name}... (Modelo: Gemini 2.5 Flash)'):
+    with st.spinner('Procesando datos y estructurando el informe...'):
         try:
-            # 1. Preparar imágenes para la API
+            # 1. Preparar imágenes
             image_parts = []
             for uploaded_file in uploaded_files:
-                bytes_data = uploaded_file.getvalue()
                 image_parts.append({
                     "mime_type": uploaded_file.type,
-                    "data": bytes_data
+                    "data": uploaded_file.getvalue()
                 })
 
-            # 2. El Prompt Maestro
-            # Pasamos las variables motel_name y period al prompt para que la IA sepa el contexto
+            # 2. Prompt Estricto (Actualizado)
             system_prompt = f"""
-            You are a Data Extraction Bot. Analyze these screenshots of Meta Business Suite analytics.
-            Aggregate data into a single JSON object.
-            
+            You are a Professional Data Analyst. Analyze these Meta Business Suite screenshots.
+            Generate a STRICT JSON object based on the requirements below.
+
             CONTEXT:
-            Business Name: {motel_name}
-            Report Period: {period}
-            
-            RULES:
-            1. Extract the exact numbers found in the images.
-            2. If a metric shows a negative trend (e.g., "▼ 39.9%"), extract the value as a negative number (-39.9).
-            3. If a metric shows a positive trend, extract it as positive.
-            4. If a metric is NOT found in any screenshot, use 0.
-            5. Return ONLY valid JSON. No markdown formatting (no ```json).
-            
+            Business: {motel_name}
+            Period: {period}
+
+            DATA EXTRACTION RULES:
+            1. **Facebook & Instagram**: Extract Views (Visualizaciones), Reach (Alcance), Interactions (Interacciones), and Followers (Seguidores/Me gusta).
+            2. **Messaging**: Extract ONLY "Total Contacts" (Contactos totales), "New Contacts" (Contactos nuevos), and "Response Time" (Tiempo de respuesta). IGNORE "Orders" or "Busiest Day".
+            3. **Demographics**: Extract Gender % and Top Cities with their %.
+            4. **Trends**: If a trend is negative (e.g., ▼ 20%), extract as negative number (-20). If positive, extract as positive.
+
             REQUIRED JSON STRUCTURE:
             {{
-                "report_metadata": {{ 
-                    "motel_name": "{motel_name}", 
-                    "period": "{period}" 
-                }},
+                "meta": {{ "business": "{motel_name}", "period": "{period}" }},
                 "facebook": {{
-                    "views": Number (integer),
-                    "views_trend": Number (float),
-                    "reach": Number (integer),
-                    "reach_trend": Number (float),
-                    "visits": Number (integer),
-                    "visits_trend": Number (float)
+                    "views": Number, "views_trend": Number,
+                    "reach": Number, "reach_trend": Number,
+                    "visits": Number, "visits_trend": Number,
+                    "followers": Number, "followers_trend": Number
                 }},
                 "instagram": {{
-                    "views": Number (integer),
-                    "views_trend": Number (float),
-                    "interactions": Number (integer),
-                    "interactions_trend": Number (float)
+                    "views": Number, "views_trend": Number,
+                    "reach": Number, "reach_trend": Number,
+                    "interactions": Number, "interactions_trend": Number,
+                    "visits": Number, "visits_trend": Number
+                }},
+                "messaging": {{
+                    "total_contacts": Number, "total_contacts_trend": Number,
+                    "new_contacts": Number, "new_contacts_trend": Number,
+                    "response_time": "String (e.g., '18s')"
                 }},
                 "demographics": {{
-                    "gender": {{ 
-                        "men_percentage": Number, 
-                        "women_percentage": Number 
-                    }},
-                    "top_cities": [ 
-                        {{ "city": "String", "percentage": Number }} 
-                    ]
+                    "men_pct": Number, "women_pct": Number,
+                    "cities": [ {{ "name": "String", "pct": Number }} ]
                 }}
             }}
             """
 
-            # 3. Llamada a la API (Modelo Actualizado)
+            # 3. Generar con Gemini 2.5 Flash
             model = genai.GenerativeModel('gemini-2.5-flash')
-            
             response = model.generate_content([system_prompt, *image_parts])
             
-            # 4. Limpieza de la respuesta
+            # 4. Limpiar JSON
             json_text = response.text.replace('```json', '').replace('```', '').strip()
-            
-            # Debug (opcional): ver qué devolvió la IA en bruto si falla el JSON
-            # st.write(json_text) 
-            
             data = json.loads(json_text)
-            
-            # 5. Renderizar HTML
-            # Añadimos la fecha de generación automática
-            data['generation_date'] = datetime.now().strftime("%d/%m/%Y")
-            
+            data['date_generated'] = datetime.now().strftime("%d/%m/%Y")
+
+            # 5. Renderizar
             env = Environment(loader=FileSystemLoader('.'))
             template = env.get_template('report_template.html')
-            
             html_output = template.render(data)
             
-            # 6. Éxito y Descarga
-            st.success("¡Reporte generado con éxito!")
-            st.markdown(f"**Negocio:** {motel_name} | **Periodo:** {period}")
-            
-            # Botón de Descarga
+            # 6. Descarga
+            st.success("¡Informe generado correctamente!")
             st.download_button(
-                label="📥 Descargar Reporte HTML (Para guardar como PDF)",
+                label="📥 Descargar Informe PDF (HTML)",
                 data=html_output,
-                file_name=f"Reporte_{motel_name.replace(' ', '_')}_{period.replace(' ', '_')}.html",
+                file_name=f"Informe_{motel_name.replace(' ', '_')}.html",
                 mime="text/html"
             )
             
-            # Vista previa de los datos extraídos
-            with st.expander("Ver datos extraídos (JSON)"):
-                st.json(data)
-
         except Exception as e:
-            st.error(f"Ocurrió un error: {e}")
-            st.info("Intenta nuevamente. Si el error persiste, verifica que las imágenes sean claras y tu API Key sea correcta.")
+            st.error(f"Error: {e}")
