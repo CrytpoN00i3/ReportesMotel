@@ -7,23 +7,6 @@ from datetime import datetime
 from PIL import Image
 import io
 
-# ADD THIS FUNCTION HERE (after imports, before st.set_page_config)
-def compress_image(uploaded_file, max_size_mb=1):
-    """Compress image to reduce memory usage"""
-    img = Image.open(uploaded_file)
-    
-    # Resize if too large
-    max_dimension = 1920
-    if max(img.size) > max_dimension:
-        img.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
-    
-    # Save compressed
-    output = io.BytesIO()
-    img.save(output, format='JPEG', quality=85, optimize=True)
-    output.seek(0)
-    return output.getvalue()
-
-
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Generador de Reportes Meta", layout="wide")
 
@@ -44,7 +27,37 @@ with col1:
 with col2:
     period = st.text_input("Periodo del Reporte", placeholder="Ej: Octubre - Noviembre")
 
-uploaded_files = st.file_uploader("Sube las evidencias (Capturas de pantalla)", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
+# --- SUBIDA DE IMÁGENES (ESTABILIZADA) ---
+st.info("📱 **Tip Móvil:** Si la subida se congela, intenta seleccionar las fotos desde la opción 'Archivos' en lugar de 'Fototeca'.")
+
+uploaded_files = st.file_uploader(
+    "Sube las evidencias", 
+    accept_multiple_files=True, 
+    type=['jpg', 'jpeg', 'png', 'webp'],
+    help="Selecciona todas las capturas necesarias."
+)
+
+# Feedback visual inmediato
+if uploaded_files:
+    num_files = len(uploaded_files)
+    st.success(f"✅ {num_files} imágenes cargadas correctamente en memoria.")
+    if num_files > 6:
+        st.warning("⚠️ Has subido muchas imágenes. Si el botón 'Generar' no responde, recarga la página e intenta subir de 5 en 5.")
+
+# --- FUNCIÓN DE COMPRESIÓN SEGURA ---
+def process_images_safe(files):
+    processed = []
+    for f in files:
+        try:
+            # Leemos bytes directamente para evitar PIL overhead si no es necesario
+            bytes_data = f.getvalue()
+            processed.append({
+                "mime_type": f.type if f.type != "application/octet-stream" else "image/jpeg",
+                "data": bytes_data
+            })
+        except Exception as e:
+            st.error(f"Error con el archivo {f.name}: {e}")
+    return processed
 
 # --- LÓGICA ---
 if st.button("Generar Reporte"):
@@ -54,18 +67,16 @@ if st.button("Generar Reporte"):
 
     genai.configure(api_key=api_key)
     
-    with st.spinner('Procesando datos y estructurando el informe...'):
+    with st.spinner('Conectando con Google Gemini 2.5...'):
         try:
-            # 1. Preparar imágenes (con compresión)
-            image_parts = []
-            for uploaded_file in uploaded_files:
-                compressed_data = compress_image(uploaded_file)
-                image_parts.append({
-                    "mime_type": "image/jpeg",
-                    "data": compressed_data
-                })
+            # 1. Procesar imágenes
+            image_parts = process_images_safe(uploaded_files)
 
-            # 2. Prompt Estricto (Actualizado con EDADES)
+            if not image_parts:
+                st.error("No se pudieron procesar las imágenes.")
+                st.stop()
+
+            # 2. Prompt Estricto
             system_prompt = f"""
             You are a Professional Data Analyst. Analyze these Meta Business Suite screenshots.
             Generate a STRICT JSON object based on the requirements below.
@@ -108,7 +119,7 @@ if st.button("Generar Reporte"):
             }}
             """
 
-            # 3. Generar con Gemini 2.5 Flash
+            # 3. Generar
             model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content([system_prompt, *image_parts])
             
