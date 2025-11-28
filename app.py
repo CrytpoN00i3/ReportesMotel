@@ -6,35 +6,62 @@ import os
 from datetime import datetime
 from PIL import Image
 
-# --- CONFIGURATION ---
-# Page Config
+# --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Generador de Reportes Analytics", layout="wide")
 
-# Sidebar for API Key
+# --- BARRA LATERAL: API KEY ---
 with st.sidebar:
     st.header("Configuración")
     api_key = st.text_input("Ingresa tu Gemini API Key", type="password")
     st.markdown("[Obtener API Key gratis](https://aistudio.google.com/app/apikey)")
+    st.info("Nota: Este script usa el modelo 'gemini-2.5-flash'. Asegúrate de que tu API Key tenga acceso.")
 
-# --- MAIN UI ---
+# --- INTERFAZ PRINCIPAL ---
 st.title("📊 Generador de Reportes PDF Automático")
-st.markdown("Sube capturas de pantalla de Meta Business Suite y obtén un reporte profesional listo para imprimir.")
+st.markdown("Crea reportes profesionales a partir de capturas de pantalla de Meta Business Suite.")
 
+# --- INPUTS DEL USUARIO (NOMBRE Y PERIODO) ---
+st.subheader("1. Detalles del Reporte")
 col1, col2 = st.columns(2)
+
 with col1:
-    motel_name = st.text_input("Nombre del Negocio / Motel", value="Motel Dulce Boca")
+    # Aquí el usuario escribe el nombre del motel
+    motel_name = st.text_input("Nombre del Negocio / Motel", value="", placeholder="Ej: Motel Dulce Boca")
+
 with col2:
-    period = st.text_input("Periodo del Reporte", value="Octubre - Noviembre")
+    # Aquí el usuario escribe el periodo (fechas)
+    period = st.text_input("Periodo del Reporte", value="", placeholder="Ej: Octubre - Noviembre 2025")
 
-uploaded_files = st.file_uploader("Sube tus capturas de pantalla (JPG, PNG)", accept_multiple_files=True, type=['jpg', 'jpeg', 'png'])
+# --- SUBIDA DE IMÁGENES ---
+st.subheader("2. Subir Evidencias")
+uploaded_files = st.file_uploader(
+    "Sube tus capturas de pantalla (JPG, PNG)", 
+    accept_multiple_files=True, 
+    type=['jpg', 'jpeg', 'png']
+)
 
-# --- LOGIC ---
-if st.button("Generar Reporte") and uploaded_files and api_key:
+# --- LÓGICA DE GENERACIÓN ---
+if st.button("Generar Reporte"):
+    
+    # Validaciones previas
+    if not api_key:
+        st.warning("⚠️ Por favor ingresa tu API Key en la barra lateral izquierda.")
+        st.stop()
+    
+    if not uploaded_files:
+        st.warning("⚠️ Por favor sube al menos una captura de pantalla.")
+        st.stop()
+        
+    if not motel_name or not period:
+        st.warning("⚠️ Por favor completa el Nombre del Negocio y el Periodo.")
+        st.stop()
+
+    # Configurar API
     genai.configure(api_key=api_key)
     
-    with st.spinner('Analizando imágenes y extrayendo datos con IA...'):
+    with st.spinner(f'Analizando imágenes para {motel_name}... (Modelo: Gemini 2.5 Flash)'):
         try:
-            # 1. Prepare Images for API
+            # 1. Preparar imágenes para la API
             image_parts = []
             for uploaded_file in uploaded_files:
                 bytes_data = uploaded_file.getvalue()
@@ -43,81 +70,93 @@ if st.button("Generar Reporte") and uploaded_files and api_key:
                     "data": bytes_data
                 })
 
-            # 2. Define the Prompt (The Brain)
+            # 2. El Prompt Maestro
+            # Pasamos las variables motel_name y period al prompt para que la IA sepa el contexto
             system_prompt = f"""
             You are a Data Extraction Bot. Analyze these screenshots of Meta Business Suite analytics.
-            Aggregate data into a single JSON. 
+            Aggregate data into a single JSON object.
             
             CONTEXT:
             Business Name: {motel_name}
-            Period: {period}
+            Report Period: {period}
             
             RULES:
-            1. If a metric shows a negative trend (e.g., "▼ 39.9%"), extract the value as a negative number (-39.9).
-            2. If a metric is missing, use 0.
-            3. Return ONLY valid JSON. No markdown formatting.
+            1. Extract the exact numbers found in the images.
+            2. If a metric shows a negative trend (e.g., "▼ 39.9%"), extract the value as a negative number (-39.9).
+            3. If a metric shows a positive trend, extract it as positive.
+            4. If a metric is NOT found in any screenshot, use 0.
+            5. Return ONLY valid JSON. No markdown formatting (no ```json).
             
             REQUIRED JSON STRUCTURE:
             {{
-                "report_metadata": {{ "motel_name": "{motel_name}", "period": "{period}" }},
+                "report_metadata": {{ 
+                    "motel_name": "{motel_name}", 
+                    "period": "{period}" 
+                }},
                 "facebook": {{
-                    "views": Number (int),
+                    "views": Number (integer),
                     "views_trend": Number (float),
-                    "reach": Number (int),
+                    "reach": Number (integer),
                     "reach_trend": Number (float),
-                    "visits": Number (int),
+                    "visits": Number (integer),
                     "visits_trend": Number (float)
                 }},
                 "instagram": {{
-                    "views": Number (int),
+                    "views": Number (integer),
                     "views_trend": Number (float),
-                    "interactions": Number (int),
+                    "interactions": Number (integer),
                     "interactions_trend": Number (float)
                 }},
                 "demographics": {{
-                    "gender": {{ "men_percentage": Number, "women_percentage": Number }},
-                    "top_cities": [ {{ "city": "String", "percentage": Number }} ]
+                    "gender": {{ 
+                        "men_percentage": Number, 
+                        "women_percentage": Number 
+                    }},
+                    "top_cities": [ 
+                        {{ "city": "String", "percentage": Number }} 
+                    ]
                 }}
             }}
             """
 
-            # 3. Call Gemini API
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # 3. Llamada a la API (Modelo Actualizado)
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            
             response = model.generate_content([system_prompt, *image_parts])
             
-            # 4. Clean and Parse JSON
+            # 4. Limpieza de la respuesta
             json_text = response.text.replace('```json', '').replace('```', '').strip()
+            
+            # Debug (opcional): ver qué devolvió la IA en bruto si falla el JSON
+            # st.write(json_text) 
+            
             data = json.loads(json_text)
             
-            # 5. Render HTML
+            # 5. Renderizar HTML
+            # Añadimos la fecha de generación automática
+            data['generation_date'] = datetime.now().strftime("%d/%m/%Y")
+            
             env = Environment(loader=FileSystemLoader('.'))
             template = env.get_template('report_template.html')
             
-            # Add generation date
-            data['generation_date'] = datetime.now().strftime("%d/%m/%Y")
-            
             html_output = template.render(data)
             
-            # 6. Display & Download
-            st.success("¡Datos extraídos correctamente!")
+            # 6. Éxito y Descarga
+            st.success("¡Reporte generado con éxito!")
+            st.markdown(f"**Negocio:** {motel_name} | **Periodo:** {period}")
             
-            # Show Preview
-            st.subheader("Vista Previa de Datos")
-            st.json(data)
-            
-            # Download Button
+            # Botón de Descarga
             st.download_button(
-                label="📥 Descargar Reporte HTML (Imprimir como PDF)",
+                label="📥 Descargar Reporte HTML (Para guardar como PDF)",
                 data=html_output,
-                file_name=f"Reporte_{motel_name.replace(' ', '_')}.html",
+                file_name=f"Reporte_{motel_name.replace(' ', '_')}_{period.replace(' ', '_')}.html",
                 mime="text/html"
             )
             
-            st.info("💡 **Tip:** Abre el archivo HTML descargado y usa **Ctrl+P (Guardar como PDF)** para obtener el documento final.")
+            # Vista previa de los datos extraídos
+            with st.expander("Ver datos extraídos (JSON)"):
+                st.json(data)
 
         except Exception as e:
             st.error(f"Ocurrió un error: {e}")
-            st.error("Asegúrate de que tu API Key sea válida y las imágenes sean legibles.")
-
-elif st.button("Generar Reporte") and not api_key:
-    st.warning("Por favor ingresa tu API Key en la barra lateral.")
+            st.info("Intenta nuevamente. Si el error persiste, verifica que las imágenes sean claras y tu API Key sea correcta.")
