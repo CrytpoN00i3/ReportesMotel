@@ -46,7 +46,7 @@ if st.button("Generar Reporte"):
                     "data": uploaded_file.getvalue()
                 })
 
-            # 2. Prompt Estricto (Actualizado)
+            # 2. Prompt Estricto (Actualizado con EDADES)
             system_prompt = f"""
             You are a Professional Data Analyst. Analyze these Meta Business Suite screenshots.
             Generate a STRICT JSON object based on the requirements below.
@@ -58,7 +58,7 @@ if st.button("Generar Reporte"):
             DATA EXTRACTION RULES:
             1. **Facebook & Instagram**: Extract Views (Visualizaciones), Reach (Alcance), Interactions (Interacciones), and Followers (Seguidores/Me gusta).
             2. **Messaging**: Extract ONLY "Total Contacts" (Contactos totales), "New Contacts" (Contactos nuevos), and "Response Time" (Tiempo de respuesta). IGNORE "Orders" or "Busiest Day".
-            3. **Demographics**: Extract Gender % and Top Cities with their %.
+            3. **Demographics**: Extract Gender %, Age Ranges % (e.g., 25-34), and Top Cities with their %.
             4. **Trends**: If a trend is negative (e.g., ▼ 20%), extract as negative number (-20). If positive, extract as positive.
 
             REQUIRED JSON STRUCTURE:
@@ -83,6 +83,7 @@ if st.button("Generar Reporte"):
                 }},
                 "demographics": {{
                     "men_pct": Number, "women_pct": Number,
+                    "ages": [ {{ "range": "String", "pct": Number }} ],
                     "cities": [ {{ "name": "String", "pct": Number }} ]
                 }}
             }}
